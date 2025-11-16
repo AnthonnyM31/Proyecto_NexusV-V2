@@ -6,25 +6,25 @@ use App\Http\Controllers\Controller;
 use App\Models\Course;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\View\View; // Importar View para los métodos create y edit
-use Illuminate\Http\RedirectResponse; // Importar RedirectResponse para store, update, destroy
+use Illuminate\View\View;
+use Illuminate\Http\RedirectResponse; 
 
 class CourseController extends Controller
 {
     /**
-     * Muestra la lista de cursos creados por el vendedor autenticado. (CORREGIDO: usa paginate)
+     * Muestra la lista de cursos creados por el vendedor autenticado.
      */
     public function index(): View
     {
         // Obtener SOLO los cursos asociados al usuario logueado, usando paginate para la vista.
         $courses = Auth::user()->courses()->latest()->paginate(10); 
 
-        // Retorna la vista específica para la gestión del vendedor (seller-index)
+        // Retorna la vista específica para la gestión del vendedor
         return view('courses.seller-index', compact('courses')); 
     }
 
     /**
-     * Muestra el formulario para crear un nuevo curso. (NUEVO MÉTODO)
+     * Muestra el formulario para crear un nuevo curso.
      */
     public function create(): View
     {
@@ -33,7 +33,7 @@ class CourseController extends Controller
     }
     
     /**
-     * Almacena un curso recién creado en la base de datos. (NUEVO MÉTODO)
+     * Almacena un curso recién creado en la base de datos.
      */
     public function store(Request $request): RedirectResponse
     {
@@ -47,7 +47,7 @@ class CourseController extends Controller
             'is_published' => ['nullable', 'boolean'],
         ]);
 
-        // 2. Creación del curso, asegurando que el user_id sea el del vendedor autenticado
+        // 2. Creación del curso
         Auth::user()->courses()->create([
             'title' => $validatedData['title'],
             'header' => $validatedData['header'],
@@ -61,7 +61,7 @@ class CourseController extends Controller
     }
 
     /**
-     * Muestra un curso específico del vendedor. (No típicamente usado en la gestión, pero requerido por Route::resource)
+     * Muestra un curso específico del vendedor.
      */
     public function show(Course $course)
     {
@@ -69,29 +69,32 @@ class CourseController extends Controller
     }
     
     /**
-     * Muestra el formulario para editar un curso existente. (REQUERIDO POR Route::resource)
+     * Muestra el formulario para editar un curso existente. (CORRECCIÓN FINAL)
      */
     public function edit(Course $course): View
     {
-        // Asegurar que el usuario es el propietario del curso
-        if ($course->user_id !== Auth::id()) {
-            abort(403);
+        // === SOLUCIÓN FINAL: PERMISO PARA ADMIN MAESTRO O DUEÑO ===
+        // Si es Master Admin, el acceso se permite inmediatamente.
+        if (Auth::user()->isMasterAdmin() || $course->user_id === Auth::id()) {
+            return view('courses.edit', compact('course'));
         }
         
-        return view('courses.edit', compact('course'));
+        // Si no cumple ninguna de las dos condiciones, denegar el acceso.
+        abort(403, 'Acción no autorizada. Solo el dueño del curso o un Administrador Maestro puede editarlo.');
     }
 
     /**
-     * Actualiza un curso en la base de datos. (REQUERIDO POR Route::resource)
+     * Actualiza un curso en la base de datos. (CORRECCIÓN FINAL)
      */
     public function update(Request $request, Course $course): RedirectResponse
     {
-        // Asegurar que el usuario es el propietario del curso
-        if ($course->user_id !== Auth::id()) {
-            abort(403);
+        // === SOLUCIÓN: PERMISO PARA ADMIN MAESTRO O DUEÑO ===
+        // Si NO es Master Admin Y NO es el dueño, abortar.
+        if (!Auth::user()->isMasterAdmin() && $course->user_id !== Auth::id()) {
+            abort(403, 'Acción no autorizada.');
         }
         
-        // Lógica de actualización (similar a store)
+        // Lógica de actualización (ejecutada si el permiso es concedido)
         $validatedData = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'header' => ['required', 'string', 'max:255'],
@@ -114,13 +117,14 @@ class CourseController extends Controller
     }
 
     /**
-     * Elimina un curso de la base de datos. (REQUERIDO POR Route::resource)
+     * Elimina un curso de la base de datos. (CORRECCIÓN FINAL)
      */
     public function destroy(Course $course): RedirectResponse
     {
-        // Asegurar que el usuario es el propietario del curso
-        if ($course->user_id !== Auth::id()) {
-            abort(403);
+        // === SOLUCIÓN: PERMISO PARA ADMIN MAESTRO O DUEÑO ===
+        // Si NO es Master Admin Y NO es el dueño, abortar.
+        if (!Auth::user()->isMasterAdmin() && $course->user_id !== Auth::id()) {
+            abort(403, 'Acción no autorizada.');
         }
         
         $course->delete();

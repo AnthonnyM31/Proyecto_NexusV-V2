@@ -24,6 +24,13 @@
                             {{ __('Gestión de Cursos') }}
                         </x-nav-link>
                     @endcan
+
+                    {{-- NUEVO: ENLACE CONDICIONAL PARA ADMINISTRADORES --}}
+                    @can('manage-system')
+                        <x-nav-link :href="route('admin.users.index')" :active="request()->routeIs('admin.users.index')">
+                            {{ __('Panel Admin') }}
+                        </x-nav-link>
+                    @endcan
                 </div>
             </div>
 
@@ -93,6 +100,13 @@
             @can('is-seller')
                 <x-responsive-nav-link :href="'/seller/courses'" :active="request()->is('seller/courses')">
                     {{ __('Gestión de Cursos') }}
+                </x-responsive-nav-link>
+            @endcan
+
+            {{-- NUEVO: ENLACE CONDICIONAL RESPONSIVE PARA ADMINISTRADORES --}}
+            @can('manage-system')
+                <x-responsive-nav-link :href="route('admin.users.index')" :active="request()->routeIs('admin.users.index')">
+                    {{ __('Panel Admin') }}
                 </x-responsive-nav-link>
             @endcan
         </div>

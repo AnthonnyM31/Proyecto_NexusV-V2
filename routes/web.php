@@ -4,6 +4,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\Seller\CourseController as SellerCourseController; // Controlador del Vendedor
 use App\Http\Controllers\CourseController as PublicCourseController; // Controlador Público (Compradores)
 use App\Http\Controllers\EnrollmentController; // Controlador de Inscripciones
+use App\Http\Controllers\Admin\UserController; // Importación para gestión de usuarios Admin
+use App\Http\Controllers\Admin\AdminController; // Importación para gestión global de cursos/inscripciones
 use Illuminate\Support\Facades\Route;
 use App\Models\Enrollment;
 
@@ -28,8 +30,7 @@ Route::get('/courses/{course}', [PublicCourseController::class, 'show'])->name('
 
 
 // --------------------------------------------------------------------------------------
-// 2. GRUPO DE RUTAS PROTEGIDAS POR AUTENTICACIÓN (MOVIDO ANTES de auth.php)
-// Esto soluciona el error persistente de RouteNotFoundException al iniciar sesión.
+// 2. GRUPO DE RUTAS PROTEGIDAS POR AUTENTICACIÓN
 // --------------------------------------------------------------------------------------
 Route::middleware('auth')->group(function () {
     
@@ -42,30 +43,60 @@ Route::middleware('auth')->group(function () {
     Route::post('/enroll/{course}', [EnrollmentController::class, 'store'])
         ->name('enroll.store');
 
+    // =======================================================
+    // 5. NUEVAS RUTAS DE ADMINISTRACIÓN (Panel de Control Total)
+    // Protegidas por el Gate 'manage-system'
+    // =======================================================
+    
+    Route::middleware('can:manage-system')->prefix('admin')->group(function () {
+        
+        // Gestión de Usuarios (CRUD - Listar, Crear, Editar, Eliminar)
+        Route::resource('users', UserController::class)
+            ->names('admin.users') 
+            ->only(['index', 'create', 'edit', 'update', 'destroy']);
+        
+        // Ruta para crear un nuevo Administrador Secundario (POST)
+        Route::post('users/create-admin', [UserController::class, 'storeAdmin'])
+            ->name('admin.users.store-admin');
+
+        // GESTIÓN GLOBAL DE CURSOS
+        Route::get('courses', [AdminController::class, 'indexCourses'])->name('admin.courses.index');
+        Route::delete('courses/{course}', [AdminController::class, 'destroyCourse'])->name('admin.courses.destroy'); // 👈 RUTA DELETE AÑADIDA
+        
+        // GESTIÓN GLOBAL DE INSCRIPCIONES
+        Route::get('enrollments', [AdminController::class, 'indexEnrollments'])->name('admin.enrollments.index');
+        Route::delete('enrollments/{enrollment}', [AdminController::class, 'destroyEnrollment'])->name('admin.enrollments.destroy'); // 👈 RUTA DELETE AÑADIDA
+    });
+
     // 4. RUTAS PARA VENDEDORES (Gestión de Cursos)
     Route::resource('seller/courses', 'App\Http\Controllers\Seller\CourseController')
     ->names('seller.courses')
     ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
     ->middleware('can:is-seller');
     
-    // Ruta Dashboard (con Lógica de Redirección por Rol)
+    // Ruta Dashboard (con Lógica de Redirección por Rol ACTUALIZADA)
     Route::get('/dashboard', function () {
-    $user = auth()->user();
+        $user = auth()->user();
 
-    // 1. Redirección del Vendedor (a su gestión de cursos)
-    if ($user->isSeller()) {
-        // Usamos la URL directa para evitar el fallo persistente del alias 'seller.courses.index'
-        return redirect('/seller/courses'); 
-    }
+        // 1. Redirección del Administrador
+        if ($user->isAdmin()) {
+            return redirect()->route('admin.users.index'); // <-- Redirigir al panel de control de usuarios
+        }
 
-    // 2. Lógica del Comprador (Dashboard)
-    // Cargar los cursos en los que el usuario está inscrito
-    $enrollments = Enrollment::with('course.user') // Incluir el curso y el instructor
-        ->where('user_id', $user->id)
-        ->latest()
-        ->get();
+        // 2. Redirección del Vendedor (a su gestión de cursos)
+        if ($user->isSeller()) {
+            // Usamos la URL directa para evitar el fallo persistente del alias 'seller.courses.index'
+            return redirect('/seller/courses'); 
+        }
 
-    return view('dashboard', compact('enrollments'));
+        // 3. Lógica del Comprador (Dashboard)
+        // Cargar los cursos en los que el usuario está inscrito
+        $enrollments = Enrollment::with('course.user') // Incluir el curso y el instructor
+            ->where('user_id', $user->id)
+            ->latest()
+            ->get();
+
+        return view('dashboard', compact('enrollments'));
     })->middleware(['verified'])->name('dashboard');
 
 });

@@ -4,6 +4,7 @@ namespace App\Models;
 
 // Importaciones necesarias
 use App\Models\Course;
+use App\Models\Enrollment; // Nueva importación
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -17,7 +18,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'role',
+        'role', // Ya añadido
     ];
 
     protected $hidden = [
@@ -35,25 +36,39 @@ class User extends Authenticatable
 
     // --- RELACIONES Y HELPERS ---
 
-    /**
-     * Get the courses owned by the user (Seller).
-     */
     public function courses(): HasMany
     {
         return $this->hasMany(Course::class);
     }
 
-    /**
-     * Get the enrollments made by the user (Buyer).
-     * NUEVA RELACIÓN
-     */
     public function enrollments(): HasMany
     {
         return $this->hasMany(Enrollment::class);
     }
 
+    // =======================================================
+    // NUEVOS HELPERS PARA ROLES JERÁRQUICOS
+    // =======================================================
+
     /**
-     * Helper para verificar si el usuario es un Vendedor.
+     * Verifica si el usuario es el Administrador Maestro (Control Total).
+     */
+    public function isMasterAdmin(): bool
+    {
+        return $this->role === 'admin-master';
+    }
+
+    /**
+     * Verifica si el usuario es Administrador (Maestro o Secundario).
+     */
+    public function isAdmin(): bool
+    {
+        // El rol 'admin-secondary' también cuenta como administrador.
+        return in_array($this->role, ['admin-master', 'admin-secondary']);
+    }
+    
+    /**
+     * Verifica si el usuario tiene el rol de Vendedor.
      */
     public function isSeller(): bool
     {
@@ -61,7 +76,7 @@ class User extends Authenticatable
     }
 
     /**
-     * Helper para verificar si el usuario es un Comprador.
+     * Verifica si el usuario tiene el rol de Comprador.
      */
     public function isBuyer(): bool
     {
