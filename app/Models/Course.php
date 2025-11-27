@@ -4,12 +4,19 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany; // NUEVA Importación
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Module;
 
 class Course extends Model
 {
     use HasFactory;
+
+    public function modules(): HasMany
+    {
+    // Cargar módulos ordenados por el campo sequence_order
+    return $this->hasMany(Module::class)->orderBy('sequence_order'); 
+    }
 
     protected $fillable = [
         'user_id',

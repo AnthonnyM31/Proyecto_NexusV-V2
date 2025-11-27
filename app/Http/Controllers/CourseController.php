@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Course;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class CourseController extends Controller
 {
@@ -30,6 +31,38 @@ class CourseController extends Controller
 
         return view('courses.public-index', compact('courses'));
     }
+
+
+    /**
+     * Muestra el contenido completo (módulos) de un curso para usuarios inscritos.
+     */
+    public function content(Course $course)
+    {
+        $user = Auth::user();
+
+        // 1. Verificar Inscripción: Solo si el usuario está inscrito, puede ver el contenido.
+        $isEnrolled = $user->enrollments()->where('course_id', $course->id)->exists();
+        
+        if (! $isEnrolled) {
+            abort(403, 'Debes estar inscrito para acceder al contenido del curso.');
+        }
+
+        // 2. Cargar Módulos y Progreso:
+        $modules = $course->modules()
+                          ->with(['progress' => function ($query) use ($user) {
+                              // Carga solo el progreso relevante para el usuario actual.
+                              $query->where('user_id', $user->id);
+                          }])
+                          ->get();
+
+        // 3. Cálculo de Progreso:
+        $totalModules = $modules->count();
+        $completedModules = $modules->filter(fn($m) => $m->progress->isNotEmpty() && $m->progress->first()->is_completed)->count();
+        $progressPercent = ($totalModules > 0) ? round(($completedModules / $totalModules) * 100) : 0;
+        
+        return view('courses.content', compact('course', 'modules', 'progressPercent', 'completedModules', 'totalModules'));
+    }
+
 
     /**
      * Muestra la vista de detalle de un curso.

@@ -6,6 +6,8 @@ use App\Http\Controllers\CourseController as PublicCourseController; // Controla
 use App\Http\Controllers\EnrollmentController; // Controlador de Inscripciones
 use App\Http\Controllers\Admin\UserController; // Importación para gestión de usuarios Admin
 use App\Http\Controllers\Admin\AdminController; // Importación para gestión global de cursos/inscripciones
+use App\Http\Controllers\Seller\ModuleController; // NUEVA IMPORTACIÓN (Fase 2)
+use App\Http\Controllers\CourseProgressController; // NUEVA IMPORTACIÓN (Fase 2)
 use Illuminate\Support\Facades\Route;
 use App\Models\Enrollment;
 
@@ -33,8 +35,16 @@ Route::get('/courses/{course}', [PublicCourseController::class, 'show'])->name('
 // 2. GRUPO DE RUTAS PROTEGIDAS POR AUTENTICACIÓN
 // --------------------------------------------------------------------------------------
 Route::middleware('auth')->group(function () {
+
+    // RUTA DE CERTIFICADO (CORRECCIÓN: Usar FQCN con barra invertida para forzar la raíz del namespace)
+    Route::get('courses/{course}/certify', [\App\Http\Controllers\CourseProgressController::class, 'certify'])
+        ->name('courses.certify');
+
+    // RUTA DE CONTENIDO DEL CURSO (CORRECCIÓN: Usar FQCN con barra invertida)
+    Route::get('/courses/{course}/content', [\App\Http\Controllers\CourseController::class, 'content'])
+        ->name('courses.content');
     
-    // Rutas de Perfil (ProfileController)
+    // Rutas de Perfil, Inscripción... (CÓDIGO EXISTENTE)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -44,13 +54,21 @@ Route::middleware('auth')->group(function () {
         ->name('enroll.store');
 
     // =======================================================
-    // 5. NUEVAS RUTAS DE ADMINISTRACIÓN (Panel de Control Total)
-    // Protegidas por el Gate 'manage-system'
+    // NUEVAS RUTAS DE PROGRESO (Fase 2)
+    // =======================================================
+    
+    // ENDPOINT PARA REGISTRAR PROGRESO (Comprador marca lección como vista)
+    Route::post('progress/complete/{module}', [CourseProgressController::class, 'store'])
+        ->name('progress.store');
+
+
+    // =======================================================
+    // 5. NUEVAS RUTAS DE ADMINISTRACIÓN (Control Total)
     // =======================================================
     
     Route::middleware('can:manage-system')->prefix('admin')->group(function () {
         
-        // Gestión de Usuarios (CRUD - Listar, Crear, Editar, Eliminar)
+        // Gestión de Usuarios (CRUD)
         Route::resource('users', UserController::class)
             ->names('admin.users') 
             ->only(['index', 'create', 'edit', 'update', 'destroy']);
@@ -59,13 +77,11 @@ Route::middleware('auth')->group(function () {
         Route::post('users/create-admin', [UserController::class, 'storeAdmin'])
             ->name('admin.users.store-admin');
 
-        // GESTIÓN GLOBAL DE CURSOS
+        // GESTIÓN GLOBAL DE CURSOS E INSCRIPCIONES (Rutas Globales)
         Route::get('courses', [AdminController::class, 'indexCourses'])->name('admin.courses.index');
-        Route::delete('courses/{course}', [AdminController::class, 'destroyCourse'])->name('admin.courses.destroy'); // 👈 RUTA DELETE AÑADIDA
-        
-        // GESTIÓN GLOBAL DE INSCRIPCIONES
+        Route::delete('courses/{course}', [AdminController::class, 'destroyCourse'])->name('admin.courses.destroy');
         Route::get('enrollments', [AdminController::class, 'indexEnrollments'])->name('admin.enrollments.index');
-        Route::delete('enrollments/{enrollment}', [AdminController::class, 'destroyEnrollment'])->name('admin.enrollments.destroy'); // 👈 RUTA DELETE AÑADIDA
+        Route::delete('enrollments/{enrollment}', [AdminController::class, 'destroyEnrollment'])->name('admin.enrollments.destroy');
     });
 
     // 4. RUTAS PARA VENDEDORES (Gestión de Cursos)
@@ -74,7 +90,17 @@ Route::middleware('auth')->group(function () {
     ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
     ->middleware('can:is-seller');
     
-    // Ruta Dashboard (con Lógica de Redirección por Rol ACTUALIZADA)
+    // =======================================================
+    // RUTAS ANIDADAS DE MÓDULOS (Fase 2)
+    // =======================================================
+    
+    // Rutas de Gestión de Módulos (VENDEDOR)
+    Route::resource('seller/courses.modules', ModuleController::class)
+        ->names('seller.modules')
+        ->except(['index', 'show']) 
+        ->middleware('can:is-seller');
+    
+    // Ruta Dashboard (con Lógica de Redirección por Rol)
     Route::get('/dashboard', function () {
         $user = auth()->user();
 
@@ -83,15 +109,13 @@ Route::middleware('auth')->group(function () {
             return redirect()->route('admin.users.index'); // <-- Redirigir al panel de control de usuarios
         }
 
-        // 2. Redirección del Vendedor (a su gestión de cursos)
+        // 2. Redirección del Vendedor
         if ($user->isSeller()) {
-            // Usamos la URL directa para evitar el fallo persistente del alias 'seller.courses.index'
             return redirect('/seller/courses'); 
         }
 
         // 3. Lógica del Comprador (Dashboard)
-        // Cargar los cursos en los que el usuario está inscrito
-        $enrollments = Enrollment::with('course.user') // Incluir el curso y el instructor
+        $enrollments = Enrollment::with('course.user') 
             ->where('user_id', $user->id)
             ->latest()
             ->get();

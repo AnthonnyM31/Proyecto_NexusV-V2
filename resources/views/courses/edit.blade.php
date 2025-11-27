@@ -14,6 +14,8 @@
                     @csrf
                     @method('PUT') {{-- Directiva necesaria para el método UPDATE --}}
 
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">{{ __('Detalles Principales del Curso') }}</h3>
+
                     {{-- Título --}}
                     <div>
                         <x-input-label for="title" :value="__('Título del Curso')" />
@@ -108,10 +110,48 @@
                     </div>
                 </form>
 
-                {{-- Opcional: Formulario para Eliminar --}}
+                
+                {{-- AÑADIDO: GESTIÓN DE MÓDULOS (Fase 4.1) --}}
+                <div class="border-t border-gray-200 mt-8 pt-6">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">{{ __('Gestión de Módulos (Contenido)') }}</h3>
+                    
+                    <div class="flex justify-end mb-4">
+                        <a href="{{ route('seller.modules.create', $course) }}">
+                            <x-primary-button class="bg-green-600 hover:bg-green-700">
+                                {{ __('+ Añadir Nuevo Módulo') }}
+                            </x-primary-button>
+                        </a>
+                    </div>
+
+                    @if($course->modules->isEmpty())
+                        <p class="text-gray-500">Aún no hay módulos. Añade el contenido del curso.</p>
+                    @else
+                        <ul class="divide-y divide-gray-200 border rounded-lg">
+                            @foreach ($course->modules as $module)
+                                <li class="p-3 flex justify-between items-center bg-white hover:bg-gray-50">
+                                    <div class="font-medium">
+                                        [{{ $module->sequence_order }}] {{ $module->title }}
+                                    </div>
+                                    <div class="text-sm">
+                                        <a href="{{ route('seller.modules.edit', ['course' => $course->id, 'module' => $module->id]) }}" class="text-indigo-600 hover:text-indigo-900 mr-2">Editar</a>
+                                        <form action="{{ route('seller.modules.destroy', ['course' => $course->id, 'module' => $module->id]) }}" method="POST" class="inline" onsubmit="return confirm('¿Eliminar módulo?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="text-red-600 hover:text-red-900">Eliminar</button>
+                                        </form>
+                                    </div>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </div>
+                {{-- FIN GESTIÓN DE MÓDULOS --}}
+                
+                
+                {{-- Formulario para Eliminar Curso (Permanente) --}}
                 <div class="border-t border-gray-200 mt-8 pt-6">
                     <h3 class="text-lg font-medium text-gray-900 mb-4">{{ __('Eliminar Curso') }}</h3>
-                    <p class="text-sm text-gray-600 mb-4">{{ __('Una vez eliminado, no se puede recuperar.') }}</p>
+                    <p class="text-sm text-gray-600 mb-4">{{ __('Una vez eliminado, no se puede recuperar. Esto también elimina todos los registros de módulos e inscripciones.') }}</p>
                     
                     <form method="POST" action="{{ route('seller.courses.destroy', $course) }}">
                         @csrf
@@ -121,6 +161,7 @@
                         </x-danger-button>
                     </form>
                 </div>
+
             </div>
         </div>
     </div>

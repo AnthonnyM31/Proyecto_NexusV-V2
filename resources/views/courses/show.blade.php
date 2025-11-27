@@ -35,15 +35,17 @@
                                 <p class="text-sm text-gray-500">Precio de Inscripción</p>
                             </div>
 
-                            {{-- Botón de Inscripción --}}
+                            {{-- Botón de Inscripción/Acceso a Contenido --}}
                             @auth
                                 @if(auth()->user()->isBuyer())
                                     
-                                    {{-- Lógica: Comprobar si ya está inscrito --}}
+                                    {{-- 1. Si está inscrito: Muestra botón de ACCESO --}}
                                     @if ($course->isEnrolled(Auth::id()))
-                                        <p class="text-center text-md font-bold text-green-600 mt-4">✅ ¡Ya estás inscrito!</p>
+                                        <a href="{{ route('courses.content', $course) }}" class="w-full inline-block text-center py-3 px-4 rounded-md shadow-sm text-lg font-medium text-white bg-green-600 hover:bg-green-700">
+                                            ✅ ACCEDER AL CONTENIDO
+                                        </a>
                                     @else
-                                        {{-- FORMULARIO CORREGIDO: Apunta a la ruta POST de inscripción --}}
+                                        {{-- 2. Si NO está inscrito: Muestra formulario de inscripción --}}
                                         <form method="POST" action="{{ route('enroll.store', $course) }}" class="mt-4">
                                             @csrf
                                             <x-primary-button class="w-full justify-center bg-indigo-600 hover:bg-indigo-700">
@@ -63,6 +65,7 @@
                                     <p class="text-center text-sm text-red-500">Solo los compradores pueden inscribirse.</p>
                                 @endif
                             @else
+                                {{-- Usuario no autenticado --}}
                                 <p class="text-center text-sm text-gray-500 mb-4">Debes iniciar sesión para inscribirte.</p>
                                 <a href="{{ route('login') }}" class="w-full inline-block text-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                                     {{ __('Iniciar Sesión') }}
