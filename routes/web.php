@@ -36,14 +36,13 @@ Route::get('/courses/{course}', [PublicCourseController::class, 'show'])->name('
 // --------------------------------------------------------------------------------------
 Route::middleware('auth')->group(function () {
 
-    // RUTA DE CERTIFICADO (CORRECCIÓN: Usar FQCN con barra invertida para forzar la raíz del namespace)
-    Route::get('courses/{course}/certify', [\App\Http\Controllers\CourseProgressController::class, 'certify'])
+    // RUTA DE CERTIFICADO: USAR EL ALIAS DE LA CLASE IMPORTADA    
+    Route::get('courses/{course}/certify', [CourseProgressController::class, 'certify'])
         ->name('courses.certify');
 
-    // RUTA DE CONTENIDO DEL CURSO (CORRECCIÓN: Usar FQCN con barra invertida)
-    Route::get('/courses/{course}/content', [\App\Http\Controllers\CourseController::class, 'content'])
+    // RUTA DE CONTENIDO DEL CURSO: USAR EL ALIAS DE LA CLASE IMPORTADA    
+    Route::get('/courses/{course}/content', [PublicCourseController::class, 'content'])
         ->name('courses.content');
-    
     // Rutas de Perfil, Inscripción... (CÓDIGO EXISTENTE)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -85,10 +84,12 @@ Route::middleware('auth')->group(function () {
     });
 
     // 4. RUTAS PARA VENDEDORES (Gestión de Cursos)
-    Route::resource('seller/courses', 'App\Http\Controllers\Seller\CourseController')
-    ->names('seller.courses')
-    ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
-    ->middleware('can:is-seller');
+    // *** MODIFICACIÓN A SINTAXIS ::CLASS USANDO EL ALIAS ***
+    Route::resource('seller/courses', SellerCourseController::class)
+        ->names('seller.courses')
+        ->only(['index', 'create', 'store', 'edit', 'update', 'destroy'])
+        ->middleware('can:is-seller');
+    // *******************************************************
     
     // =======================================================
     // RUTAS ANIDADAS DE MÓDULOS (Fase 2)

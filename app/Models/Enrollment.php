@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+// Ya no necesitamos HasMany aquí si eliminamos la relación 'progress'
+// use Illuminate\Database\Eloquent\Relations\HasMany; 
 
 class Enrollment extends Model
 {
@@ -33,4 +35,8 @@ class Enrollment extends Model
     {
         return $this->belongsTo(Course::class);
     }
+    
+    // NOTA: Se ha eliminado la relación 'progress()' de este modelo, 
+    // ya que la lógica para calcular el progreso completo se movió al 
+    // CourseProgressController para una consulta más eficiente y precisa.
 }
