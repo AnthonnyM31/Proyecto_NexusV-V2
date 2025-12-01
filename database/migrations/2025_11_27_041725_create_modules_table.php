@@ -9,19 +9,23 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-   public function up(): void
+    public function up(): void
     {
-    Schema::create('modules', function (Blueprint $table) {
-        $table->id();
-        // Llave foránea para vincular el módulo al curso
-        $table->foreignId('course_id')->constrained()->onDelete('cascade'); 
-        
-        $table->string('title');
-        $table->text('content_url'); // Asumimos que es un enlace a la lección (video, documento)
-        $table->integer('sequence_order')->default(1); // Para ordenar las lecciones
-        
-        $table->timestamps();
-    });
+        Schema::create('modules', function (Blueprint $table) {
+            $table->id();
+            // Llave foránea para vincular el módulo al curso
+            $table->foreignId('course_id')->constrained()->onDelete('cascade'); 
+            
+            $table->string('title');
+            
+            // CORRECCIÓN AQUÍ: Agregamos ->nullable()
+            // Esto permite que el campo esté vacío cuando subes un video o documento
+            $table->text('content_url')->nullable(); 
+            
+            $table->integer('sequence_order')->default(1); // Para ordenar las lecciones
+            
+            $table->timestamps();
+        });
     }
 
     /**

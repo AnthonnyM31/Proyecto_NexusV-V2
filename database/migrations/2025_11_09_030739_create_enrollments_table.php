@@ -14,12 +14,17 @@ return new class extends Migration
     Schema::create('enrollments', function (Blueprint $table) {
         $table->id();
         
-        // --- COLUMNAS FALTANTES AÑADIDAS ---
+        // --- COLUMNAS EXISTENTES ---
         $table->foreignId('course_id')->constrained()->onDelete('cascade');
         $table->foreignId('user_id')->constrained()->onDelete('cascade');
         $table->unique(['course_id', 'user_id']); 
-        $table->string('status')->default('paid'); 
-        // -----------------------------------
+        $table->string('status')->default('pending'); // Cambiado a 'pending' por defecto para el flujo de pago
+        // -----------------------------
+
+        // --- NUEVAS COLUMNAS PARA CERTIFICADO ---
+        $table->uuid('certificate_uuid')->nullable()->unique(); // UUID único para verificación pública (QR)
+        $table->timestamp('completed_at')->nullable(); // Fecha de finalización (para el certificado)
+        // ------------------------------------------
         
         $table->timestamps();
     });

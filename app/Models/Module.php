@@ -10,7 +10,14 @@ class Module extends Model
 {
     use \Illuminate\Database\Eloquent\Factories\HasFactory;
 
-    protected $fillable = ['course_id', 'title', 'content_url', 'sequence_order'];
+   protected $fillable = [
+        'course_id', 
+        'title', 
+        'content_url', 
+        'sequence_order',
+        'content_type', 
+        'content_path'  
+    ];
 
     public function course(): BelongsTo
     {

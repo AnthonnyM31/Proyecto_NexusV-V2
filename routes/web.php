@@ -10,6 +10,15 @@ use App\Http\Controllers\Seller\ModuleController; // NUEVA IMPORTACIÓN (Fase 2)
 use App\Http\Controllers\CourseProgressController; // NUEVA IMPORTACIÓN (Fase 2)
 use Illuminate\Support\Facades\Route;
 use App\Models\Enrollment;
+// RUTA PÚBLICA PARA LA VERIFICACIÓN DE CERTIFICADOS
+use App\Http\Controllers\CertificateController;
+
+Route::get('/certificate/verify/{uuid}', [CertificateController::class, 'verify'])
+    ->name('certificate.verify');
+
+
+
+
 
 // --------------------------------------------------------------------------------------
 // 1. RUTAS PÚBLICAS Y REDIRECCIÓN DE INICIO (/)

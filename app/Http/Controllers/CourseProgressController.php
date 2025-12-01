@@ -8,6 +8,7 @@ use App\Models\Course; // Importación necesaria para el Type Hinting en certify
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\RedirectResponse;
 use App\Models\Enrollment; // Añadimos la importación de Enrollment para usarlo de forma explícita
+use Illuminate\Support\Str;
 
 class CourseProgressController extends Controller
 {
@@ -53,44 +54,48 @@ class CourseProgressController extends Controller
     {
         $user = Auth::user();
 
-        // 1. Verificar Inscripción de forma segura (si no está inscrito, aborta)
-        $isEnrolled = Enrollment::where('user_id', $user->id)
+        // 1. Verificar Inscripción y obtener la instancia de Enrollment (CRUCIAL)
+        $enrollment = Enrollment::where('user_id', $user->id)
                             ->where('course_id', $course->id)
-                            ->exists();
+                            ->first(); 
+        
+        if (!$enrollment) {
+            abort(403, 'Debes estar inscrito para obtener un certificado.');
+        }
 
-     if (! $isEnrolled) {
-        abort(403, 'Debes estar inscrito para obtener un certificado.');
-     }
-    
-     // 2. Cargar Módulos y el progreso del usuario
-     $modules = $course->modules()
-        ->with(['progress' => function ($query) use ($user) {
-            // Carga solo el progreso relevante para el usuario actual.
-            // Asumo que 'progress' es una relación en el modelo Module 
-            // que apunta a la tabla course_progresses
-            $query->where('user_id', $user->id); 
-        }])
-        ->get();
+        // 2. Cargar Módulos y calcular Progreso (Lógica existente)
+        $modules = $course->modules()
+            ->with(['progress' => function ($query) use ($user) {
+                $query->where('user_id', $user->id); 
+            }])
+            ->get();
 
-     // 3. Calcular Progreso (como en CourseController@content)
-     $totalModules = $modules->count();
-    
+        $totalModules = $modules->count();
+        
         if ($totalModules === 0) {
-        return back()->with('error', 'El curso no tiene módulos definidos.');
-     }
+            return back()->with('error', 'El curso no tiene módulos definidos.');
+        }
 
-     $completedModules = $modules->filter(fn($m) => 
-        $m->progress->isNotEmpty() && $m->progress->first()->is_completed
-     )->count();
-     
-     $progressPercent = round(($completedModules / $totalModules) * 100);
+        $completedModules = $modules->filter(fn($m) => 
+            $m->progress->isNotEmpty() && $m->progress->first()->is_completed
+        )->count();
+        
+        $progressPercent = round(($completedModules / $totalModules) * 100);
 
-     // 4. Verificación de Finalización (100%)
+        // 3. Verificación de Finalización (100%)
         if ($progressPercent < 100) {
-        return back()->with('error', "No has completado el curso al 100%. Progreso actual: {$progressPercent}%.");
-     }
+            return back()->with('error', "No has completado el curso al 100%. Progreso actual: {$progressPercent}%.");
+        }
 
-        // 5. Lógica de Certificado (Ahora sí, si pasa el 100%)
-     return view('courses.certificate', compact('course', 'user'));
+        // 4. Generar o Asegurar el Certificado (¡NUEVA LÓGICA!)
+        if (!$enrollment->hasCertificate()) { 
+            // Generar un UUID único para el enlace público
+            $enrollment->certificate_uuid = Str::uuid(); 
+            $enrollment->completed_at = now();
+            $enrollment->save();
+        }
+
+        // 5. Mostrar Certificado (Pasamos el enrollment a la vista)
+        return view('courses.certificate', compact('course', 'user', 'enrollment'));
     }
 }

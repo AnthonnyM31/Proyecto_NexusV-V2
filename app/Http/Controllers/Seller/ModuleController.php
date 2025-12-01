@@ -7,17 +7,17 @@ use App\Models\Course;
 use App\Models\Module;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Contracts\View\View;
 
 class ModuleController extends Controller
 {
-    // Usaremos solo create, store, edit y destroy para esta fase.
-
     /**
-     * Muestra el formulario para crear un nuevo módulo para un curso.
+     * Muestra el formulario para crear un nuevo módulo.
      */
-    public function create(Course $course)
+    public function create(Course $course): View
     {
-        // Autorización: Asegura que el vendedor sea el dueño del curso.
         if ($course->user_id !== Auth::id()) {
             abort(403, 'No autorizado para gestionar este curso.');
         }
@@ -28,36 +28,67 @@ class ModuleController extends Controller
     /**
      * Almacena un módulo recién creado.
      */
-    public function store(Request $request, Course $course)
+    public function store(Request $request, Course $course): RedirectResponse
     {
+        // 1. Autorización
         if ($course->user_id !== Auth::id()) {
             abort(403);
         }
 
-        $validated = $request->validate([
+        // 2. Validación
+        $data = $request->validate([
             'title' => 'required|string|max:255',
-            'content_url' => 'required|url', 
             'sequence_order' => 'required|integer|min:1',
+            'content_type' => 'required|in:link,video,document',
+            'content_url' => 'nullable|url|required_if:content_type,link', 
+            'media_file' => [
+                'nullable', 
+                'file', 
+                'max:51200', // 50MB (50 * 1024)
+                'mimes:mp4,pdf,doc,docx,mov,webm',
+                'required_unless:content_type,link' 
+            ],
         ]);
 
-        $course->modules()->create($validated);
+        $contentPath = null;
+        $contentUrl = null;
 
-        return redirect()->route('seller.courses.edit', $course)->with('success', 'Módulo creado exitosamente.');
+        // 3. Lógica de Manejo de Contenido
+        if ($data['content_type'] !== 'link') {
+            // Es Video o Documento
+            if ($request->hasFile('media_file')) { 
+                $contentPath = $request->file('media_file')->store(
+                    'modules/course_' . $course->id, 
+                    'public' 
+                );
+            }
+            // En este caso $contentUrl se queda como NULL, lo cual ahora es permitido por la BD.
+        } else {
+            // Es Link
+            $contentUrl = $data['content_url'];
+            // $contentPath se queda como NULL
+        }
+        
+        // 4. Creación del Módulo
+        $course->modules()->create([
+            'title' => $data['title'],
+            'sequence_order' => $data['sequence_order'],
+            'content_type' => $data['content_type'],
+            'content_url' => $contentUrl,
+            'content_path' => $contentPath,
+        ]);
+
+        return redirect()->route('seller.courses.edit', $course)
+                         ->with('success', 'Módulo creado exitosamente.');
     }
     
     /**
-     * Muestra el formulario para editar un módulo existente.
+     * Muestra el formulario para editar un módulo.
      */
     public function edit(Course $course, Module $module): View
     {
-        // Autorización: Asegura que el vendedor sea el dueño del curso al que pertenece el módulo.
-        if ($course->user_id !== Auth::id()) {
-            abort(403, 'No autorizado para gestionar este módulo.');
-        }
-
-        // Asegura que el módulo pertenece al curso correcto
-        if ($module->course_id !== $course->id) {
-             abort(404);
+        if ($course->user_id !== Auth::id() || $module->course_id !== $course->id) {
+            abort(403, 'No autorizado.');
         }
 
         return view('courses.modules.edit', compact('course', 'module'));
@@ -68,35 +99,80 @@ class ModuleController extends Controller
      */
     public function update(Request $request, Course $course, Module $module): RedirectResponse
     {
-        // Autorización: Asegura que el vendedor sea el dueño.
         if ($course->user_id !== Auth::id() || $module->course_id !== $course->id) {
             abort(403);
         }
-
-        $validated = $request->validate([
+        
+        $data = $request->validate([
             'title' => 'required|string|max:255',
-            'content_url' => 'required|url', 
             'sequence_order' => 'required|integer|min:1',
+            'content_type' => 'required|in:link,video,document',
+            'content_url' => 'nullable|url|required_if:content_type,link', 
+            'media_file' => [
+                'nullable', 
+                'file', 
+                'max:51200', 
+                'mimes:mp4,pdf,doc,docx,mov,webm',
+            ],
         ]);
 
-        $module->update($validated);
+        $contentPath = $module->content_path;
+        $contentUrl = null; 
 
-        return redirect()->route('seller.courses.edit', $course)->with('success', 'Módulo actualizado exitosamente.');
+        if ($data['content_type'] !== 'link') {
+            // Lógica para Video/Documento
+            if ($request->hasFile('media_file')) {
+                if ($module->content_path) {
+                    Storage::disk('public')->delete($module->content_path);
+                }
+                $contentPath = $request->file('media_file')->store(
+                    'modules/course_' . $course->id, 
+                    'public' 
+                );
+            }
+            
+            // Validación extra: si cambió de Link a Video y no subió nada
+            if (is_null($contentPath) && !$request->hasFile('media_file')) {
+                 return back()->withInput()->withErrors(['media_file' => 'Debes subir un archivo si cambias el tipo de contenido.']);
+            }
+
+        } else {
+            // Lógica para Link
+            $contentUrl = $data['content_url'];
+            
+            if ($module->content_path) {
+                Storage::disk('public')->delete($module->content_path);
+            }
+            $contentPath = null;
+        }
+        
+        $module->update([
+            'title' => $data['title'],
+            'sequence_order' => $data['sequence_order'],
+            'content_type' => $data['content_type'],
+            'content_url' => $contentUrl,
+            'content_path' => $contentPath, 
+        ]);
+
+        return redirect()->route('seller.courses.edit', $course)
+                         ->with('success', 'Módulo actualizado exitosamente.');
     }
 
     /**
-     * Elimina un módulo y sus registros de progreso asociados.
+     * Elimina un módulo.
      */
     public function destroy(Course $course, Module $module): RedirectResponse
     {
-        // Autorización: Asegura que el vendedor sea el dueño.
         if ($course->user_id !== Auth::id() || $module->course_id !== $course->id) {
             abort(403);
         }
 
-        // Elimina el módulo (y los registros de progreso asociados, gracias al onDelete('cascade') en la migración).
+        if ($module->content_path) {
+            Storage::disk('public')->delete($module->content_path);
+        }
+
         $module->delete();
 
-        return redirect()->route('seller.courses.edit', $course)->with('success', 'Módulo eliminado exitosamente.');
+        return redirect()->route('seller.courses.edit', $course)->with('success', 'Módulo eliminado.');
     }
 }
